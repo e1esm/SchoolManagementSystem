@@ -1,18 +1,14 @@
 package main
 
 import (
+	"SchoolManagementSystem/internal/app"
 	"SchoolManagementSystem/internal/utils"
-	"database/sql"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx"
 	"log"
 	"os"
 )
-
-type DB struct {
-	DB *sql.DB
-}
 
 //TODO: https://github.com/johnfercher/maroto - Library for PDF generation.
 //TODO: Locale Eng/Rus
@@ -25,12 +21,13 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+
 	defer db.Close()
 	go setupDB(db)
 	for isRunning {
 		fmt.Println(utils.Green + "!Welcome to School Management System!" + utils.Reset)
 		fmt.Println("1.Log in/ Sign up")
-		authorize()
+		authorize(db)
 
 	}
 
@@ -48,7 +45,7 @@ func setupDB(db *pgx.Conn) {
 	}
 }
 
-func authorize() bool {
+func authorize(db *pgx.Conn) bool {
 	var username string
 	var password string
 	isSigned := false
@@ -57,6 +54,15 @@ func authorize() bool {
 	fmt.Fscan(os.Stdin, &username)
 	fmt.Print("Enter password: ")
 	fmt.Fscan(os.Stdin, &password)
+
+	guest := app.NewGuest(username, password)
+
+	exist := app.AlreadyExists(guest, db)
+	if exist {
+		app.LogIn(guest, db)
+	} else {
+		app.SignUp(guest, db)
+	}
 
 	return isSigned
 }
