@@ -63,6 +63,5 @@ func authorize(db *pgx.Conn) bool {
 	} else {
 		app.SignUp(guest, db)
 	}
-
 	return isSigned
 }
