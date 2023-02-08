@@ -3,6 +3,7 @@ package main
 import (
 	"SchoolManagementSystem/internal/app"
 	"SchoolManagementSystem/internal/utils"
+	"bufio"
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx"
@@ -28,13 +29,12 @@ func main() {
 		fmt.Println(utils.Green + "!Welcome to School Management System!" + utils.Reset)
 		fmt.Println("1.Log in/ Sign up")
 		authorize(db)
-
 	}
 
 }
 
 func setupDB(db *pgx.Conn) {
-	sqlQuery, err := os.ReadFile("../internal/pkg/db/V1.sql")
+	sqlQuery, err := os.ReadFile("./internal/pkg/db/V1.sql")
 	if err != nil {
 		//log.Fatal(errors.New("can't find required file"))
 		log.Fatal(err.Error())
@@ -49,19 +49,26 @@ func authorize(db *pgx.Conn) bool {
 	var username string
 	var password string
 	isSigned := false
+	inputReader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Enter username: ")
-	fmt.Fscan(os.Stdin, &username)
-	fmt.Print("Enter password: ")
-	fmt.Fscan(os.Stdin, &password)
+	for !isSigned {
+		fmt.Println("Enter username: ")
+		username, _ = inputReader.ReadString('\n')
+		fmt.Println("Enter password: ")
+		password, _ = inputReader.ReadString('\n')
 
-	guest := app.NewGuest(username, password)
+		guest := app.NewGuest(username, password)
 
-	exist := app.AlreadyExists(guest, db)
-	if exist {
-		app.LogIn(guest, db)
-	} else {
-		app.SignUp(guest, db)
+		exist := app.AlreadyExists(guest, db)
+		if exist {
+
+			isSigned = app.LogIn(guest, db)
+
+		} else {
+			app.SignUp(guest, db)
+			isSigned = true
+		}
 	}
+	log.Println("Successfully logged in.")
 	return isSigned
 }
