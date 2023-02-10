@@ -2,8 +2,8 @@ package app
 
 import (
 	"SchoolManagementSystem/internal/models"
+	"SchoolManagementSystem/internal/utils"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"github.com/jackc/pgx"
@@ -27,26 +27,40 @@ func AlreadyExists(guest models.Guest, db *pgx.Conn) bool {
 	return doesExist
 }
 
-func LogIn(guest models.Guest, db *pgx.Conn) (string, bool) {
+func LogIn(guest models.Guest, db *pgx.Conn) (models.SchoolAttendant, bool) {
 	isEntered := true
-	sqlQuery := "SELECT role from users WHERE password = $1;"
+	sqlQuery := "SELECT id, name, role, teacher_of, is_left from users WHERE password = $1;"
+
+	hash := sha256.New()
+	hash.Write([]byte(guest.Password))
+	guest.Password = base64.URLEncoding.EncodeToString(hash.Sum(nil))
 	row := db.QueryRow(sqlQuery, guest.Password)
-	var role string
-	switch err := row.Scan(&role); err {
-	case sql.ErrNoRows:
-		log.Println("Password is incorrect")
+
+	var id int
+	var name, role, teacher_of string
+	var is_left bool
+	switch err := row.Scan(&id, &name, &role, &teacher_of, &is_left); err {
+	case pgx.ErrNoRows:
+		log.Println(utils.Red + "Password is incorrect" + utils.Reset)
 		isEntered = false
+		return nil, false
 	case nil:
 		isEntered = true
 	}
-	if role == "teacher" {
-		return "teacher", isEntered
+	var schoolAttendant models.SchoolAttendant
+	if is_left {
+		log.Fatal("This user has quit our school.")
 	} else {
-		return "student", isEntered
+		if role == string(models.TEACHER) {
+			schoolAttendant = models.TeacherFullyGenerator(models.Guest{Username: name, Role: models.TEACHER}, models.Subject(teacher_of), id)
+		} else {
+			schoolAttendant = models.StudentGenerator(id, name)
+		}
 	}
+	return schoolAttendant, isEntered
 }
 
-func SignUp(guest models.Guest, db *pgx.Conn) string {
+func SignUp(guest models.Guest, db *pgx.Conn) (models.SchoolAttendant, bool) {
 
 	var option int
 	fmt.Println("Choose your role at school:\n1.Student\n2.Teacher")
@@ -59,18 +73,18 @@ func SignUp(guest models.Guest, db *pgx.Conn) string {
 		if err != nil {
 			log.Fatal("Couldn't add student's credentials in the database.")
 		}
-		return guest.Role
+		return models.Student{Name: guest.Username}, true
 	case 2:
 		guest.Role = "teacher"
 		subject := chooseSubject()
 		teacher := models.TeacherGenerator(guest, subject)
-		err := addNewTeacherToDatabase(teacher, guest.Password, subject, guest.Role, db)
+		err := addNewTeacherToDatabase(teacher, guest.Password, subject, string(guest.Role), db)
 		if err != nil {
 			log.Fatal("Couldn't add new teacher to the database.")
 		}
-		return guest.Role
+		return models.TeacherGenerator(guest, subject), true
 	}
-	return ""
+	return nil, false
 }
 
 func chooseSubject() models.Subject {

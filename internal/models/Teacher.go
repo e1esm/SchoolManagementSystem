@@ -51,9 +51,13 @@ func TeacherGenerator(guest Guest, subject Subject) Teacher {
 	return Teacher{Name: guest.Username, CurrentSubject: subject}
 }
 
-func (s Student) leave(db *pgx.Conn) {
+func TeacherFullyGenerator(guest Guest, subject Subject, ID int) Teacher {
+	return Teacher{Name: guest.Username, CurrentSubject: subject, ID: ID}
+}
+
+func (t Teacher) Leave(db *pgx.Conn) {
 	sqlDeleteQuery := "UPDATE users set is_left = true where name = $1"
-	_, err := db.Exec(sqlDeleteQuery, s.name)
+	_, err := db.Exec(sqlDeleteQuery, t.Name)
 	if err != nil {
 		log.Fatal("Couldn't leave the school as a teacher")
 	}

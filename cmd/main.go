@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"reflect"
 	"time"
 
 	"github.com/jackc/pgx"
@@ -18,12 +19,10 @@ import (
 //TODO: https://github.com/johnfercher/maroto - Library for PDF generation.
 //TODO: Locale Eng/Rus
 
-var (
-	IsTeacher bool
-	Name      string
-)
+var currentSession models.SchoolAttendant
 
 func main() {
+
 	//isSigned := true
 	cfg := pgx.ConnConfig{Password: os.Getenv("db_password"), User: os.Getenv("db_username"), Database: os.Getenv("db_name"), Port: 5432}
 	db, err := pgx.Connect(cfg)
@@ -33,19 +32,20 @@ func main() {
 
 	defer db.Close()
 	go setupDB(db)
-	username, authorized := authorize(db)
+	var authorized bool
+	authorized = authorize(db)
 	if authorized {
-		menuLogic(username)
+		menuLogic()
 	}
 
 }
 
-func menuLogic(username string) {
+func menuLogic() {
 	isRunning := true
 
 	for isRunning {
 		choice := 0
-		if IsTeacher {
+		if reflect.TypeOf(currentSession) == reflect.TypeOf((*models.Teacher)(nil)).Elem() {
 			fmt.Println("1.Set a mark.\n2.Add a student to a class.\n3.Generate PDF based on marks of X student.\n4.Generate PDF based on marks of all students.")
 			fmt.Scan(&choice)
 			switch choice {
@@ -89,41 +89,30 @@ func setupDB(db *pgx.Conn) {
 	}
 }
 
-func authorize(db *pgx.Conn) (string, bool) {
+func authorize(db *pgx.Conn) bool {
 	fmt.Println(utils.Green + "!Welcome to School Management System!" + utils.Reset)
 	fmt.Println("Log in/ Sign up")
-	var password string
 	isSigned := false
 	inputReader := bufio.NewReader(os.Stdin)
+	var guest models.Guest
 
 	for !isSigned {
 		fmt.Println("Enter username: ")
-		Name, _ = inputReader.ReadString('\n')
+		Name, _ := inputReader.ReadString('\n')
 
 		fmt.Println("Enter password: ")
-		password, _ = inputReader.ReadString('\n')
+		password, _ := inputReader.ReadString('\n')
 
-		guest := models.NewGuest(Name, password)
+		guest = models.NewGuest(Name, password)
 
 		exist := app.AlreadyExists(guest, db)
 		if exist {
-
-			var role string
-			role, isSigned = app.LogIn(guest, db)
-			if role == "teacher" {
-				IsTeacher = true
-			} else {
-				IsTeacher = false
-			}
-
+			currentSession, isSigned = app.LogIn(guest, db)
 		} else {
-			role := app.SignUp(guest, db)
-			if role == "teacher" {
-				IsTeacher = true
-			} else {
-				IsTeacher = false
+			currentSession, isSigned = app.SignUp(guest, db)
+			if currentSession == nil {
+				log.Fatal("Couldn't load user from current Database.")
 			}
-			isSigned = true
 		}
 	}
 	fmt.Println(utils.Yellow + "Successfully logged in." + utils.Reset)
@@ -131,5 +120,5 @@ func authorize(db *pgx.Conn) (string, bool) {
 	cmd := exec.Command("clear")
 	cmd.Stdout = os.Stdout
 	cmd.Run()
-	return Name, isSigned
+	return isSigned
 }

@@ -11,8 +11,8 @@ type Learner interface {
 }
 
 type Student struct {
-	name string
-	id   int
+	Name string
+	ID   int
 }
 
 func (s Student) GetAllMarks() []int {
@@ -24,13 +24,13 @@ func (s Student) getMarksFor(subject Subject) []int {
 	return nil
 }
 
-func StudentGenerator(age int, name string) *Student {
-	return &Student{name: name}
+func StudentGenerator(ID int, name string) *Student {
+	return &Student{Name: name, ID: ID}
 }
 
 func (s Student) Leave(db *pgx.Conn) {
 	sqlDeleteQuery := "UPDATE users set is_left = true where name = $1"
-	_, err := db.Exec(sqlDeleteQuery, s.name)
+	_, err := db.Exec(sqlDeleteQuery, s.Name)
 	if err != nil {
 		log.Fatal("Couldn't leave the school as a student")
 	}
